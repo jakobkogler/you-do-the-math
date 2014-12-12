@@ -17,7 +17,7 @@ def compute_probability(n):
                     count[i] += 1
 
     for i in range(n):
-        print("{:2d} {:9d} / {:10d} : {:6.2%}".format(i+1, count[i], 6**n, count[i]/6**n))
+        print("{:2d}  {:9d} / {:10d} {:6.2%}".format(i+1, count[i], 6**n, count[i]/6**n))
 
 if __name__ == "__main__":
     if len(argv) > 1:
