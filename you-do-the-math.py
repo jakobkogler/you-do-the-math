@@ -1,4 +1,4 @@
-import itertools
+from itertools import product
 from sys import argv
 import pp
 
@@ -13,12 +13,11 @@ def compute_probability(n):
     job_server = pp.Server(ppservers=ppservers)
     core_count = job_server.get_ncpus()
 
-    count = [0]*n
+    # generate and divide all possible vector A (modulo cycled vectors)
     set_A = set()
     d = [dict() for i in range(core_count)]
-
     tmp = 0
-    for A in itertools.product((0,1), repeat=n):
+    for A in product((0,1), repeat=n):
         if A not in set_A:
             cycled_set = set_cycled_tuple(A, n)
             cycled_count = len(cycled_set)
@@ -26,8 +25,9 @@ def compute_probability(n):
             d[tmp%core_count][A] = cycled_count
             tmp += 1
 
+    # start threads on each core, wait and combine results
     count = [0] * n
-    jobs = [job_server.submit(core_computation,(d1,n), (), ("itertools",)) for d1 in d]
+    jobs = [job_server.submit(core_computation,(d1,n), (), ()) for d1 in d]
     for job in jobs:
         count2 = job()
         for i in range(n):
@@ -40,38 +40,41 @@ def core_computation(dict_A, n):
     count = [0] * n
 
     stack = []
+    # for each vector A, create all possible vectors B
     for A, cycled_count in dict_A.iteritems():
         ones = [sum(A[i:]) for i in range(n)]
         stack.append(([0] * n, 0, 0))
 
         while stack:
-            l2, t, sum_bisher = stack.pop()
-            if t < n:
-                if A[t] == 0:
+            B, index, sum1 = stack.pop()
+            if index < n:
+                # fill vector B[index] in all possible ways,
+                # so that it's still possible to reach 0.
+                if A[index] == 0:
                     for v in(-1, 0, 1):
-                        l3 = l2[:]
-                        l3[t] = v
-                        stack.append((l3, t+1, sum_bisher))
+                        C = B[:]
+                        C[index] = v
+                        stack.append((C, index + 1, sum1))
                 else:
-                    if ones[t]-1 > -sum_bisher:
-                        l3 = l2[:]
-                        l3[t] = -1
-                        stack.append((l3, t+1, sum_bisher-1))
-                    if abs(sum_bisher) <= ones[t] - 1:
-                        l3 = l2[:]
-                        l3[t] = 0
-                        stack.append((l3, t+1, sum_bisher))
-                    if sum_bisher < ones[t]-1:
-                        l3 = l2[:]
-                        l3[t] = 1
-                        stack.append((l3, t+1, sum_bisher+1))
+                    if ones[index]-1 > -sum1:
+                        C = B[:]
+                        C[index] = -1
+                        stack.append((C, index + 1, sum1 - 1))
+                    if abs(sum1) <= ones[index] - 1:
+                        # already zero
+                        stack.append((B, index + 1, sum1))
+                    if sum1 < ones[index]-1:
+                        C = B[:]
+                        C[index] = 1
+                        stack.append((C, index + 1, sum1 + 1))
             else:
+                # B is complete, calculate the sums
                 for i in range(n):
                     sum_prod = 0
                     for j in range(n-i):
-                        sum_prod += A[j] * l2[i+j]
+                        sum_prod += A[j] * B[i+j]
                     for j in range(i):
-                        sum_prod += A[n-i+j] * l2[j]
+                        sum_prod += A[n-i+j] * B[j]
                     if sum_prod:
                         break
                     else:
