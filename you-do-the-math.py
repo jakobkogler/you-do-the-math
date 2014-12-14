@@ -9,7 +9,6 @@ def compute_probability(n):
     job_server = pp.Server(ppservers=ppservers)
     core_count = job_server.get_ncpus()
 
-    print(core_count)
     # generate all possible vector A
     # and divide them to the cores
     visited = set()
@@ -27,8 +26,6 @@ def compute_probability(n):
             visited.update(same_probability_set)
             todo[core_index % core_count][A] = len(same_probability_set)
             core_index += 1
-    for t in todo:
-        print(len(t))
 
     # start threads on each core, wait and combine results
     count = [0] * n
