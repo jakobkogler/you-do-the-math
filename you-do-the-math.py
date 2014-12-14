@@ -22,6 +22,7 @@ def compute_probability(n):
 
 
     # generate all vectors A
+    n = 4
     list_A = [0b00, 0b11]
     for i in range(n-1):
         list_A2 = []
@@ -46,7 +47,7 @@ def compute_probability(n):
 
     # start threads on each core, wait and combine results
     count = [0] * n
-    jobs = [job_server.submit(core_computation,(todo_core,n), (), ()) for todo_core in todo]
+    jobs = [job_server.submit(core_computation,(todo_core,n), (cycle,), ()) for todo_core in todo]
     for job in jobs:
         count2 = job()
         for i in range(1, n):
@@ -68,9 +69,8 @@ def oeis_A081671(n):
 
 def core_computation(todo, n):
     count = [0] * n
-    cycle_mask = (1 << (2*n - 2)) - 1
 
-    # create look-up table for sum calculations
+    #create look-up table for sum calculations
     lookup = dict()
     lookup[0] = 0
     for i in range(n):
@@ -78,13 +78,6 @@ def core_computation(todo, n):
             lookup[(k << 2) | 0b01] = v + 1
             lookup[(k << 2) | 0b00] = v
             lookup[(k << 2) | 0b10] = v - 1
-
-
-    # create minus and plus 1 masks
-    plus_mask, minus_mask = [0b00], [0b00]
-    for i in range(n):
-        minus_mask.append((minus_mask[-1] << 2) | 0b10)
-        plus_mask.append((plus_mask[-1] << 2) | 0b01)
 
     stack = []
     # for each vector A, create all possible vectors B
@@ -94,26 +87,15 @@ def core_computation(todo, n):
         while stack:
             B, index = stack.pop()
             if index < n:
-                tmp = (B << (2*(n-index)))
-                min_B = tmp | minus_mask[n - index]
-                max_B = tmp | plus_mask[n - index]
-
-                if lookup[A & min_B] <= 0 <= lookup[A & max_B]:
-                    min_B = ((min_B & cycle_mask) << 2) | (min_B >> (2*n - 2))
-                    max_B = ((max_B & cycle_mask) << 2) | (max_B >> (2*n - 2))
-                    if lookup[A & min_B] <= 0 <= lookup[A & max_B]:
-                        tmp = B << 2
-                        stack.append((tmp | 0b00, index + 1))
-                        stack.append((tmp | 0b01, index + 1))
-                        stack.append((tmp | 0b10, index + 1))
+                stack.append(((B << 2) | 0b00, index + 1))
+                stack.append(((B << 2) | 0b01, index + 1))
+                stack.append(((B << 2) | 0b10, index + 1))
             else:
                 # B is complete, calculate the sums
                 for i in range(0, n):
                     if lookup[A & B] == 0:
                         count[i] += cycled_count
-                        B = ((B & cycle_mask) << 2) | (B >> (2*n - 2))
-                    else:
-                        break
+                        B = cycle(B, n)
     return count
 
 
