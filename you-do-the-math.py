@@ -46,7 +46,7 @@ def compute_probability(n):
 
     # start threads on each core, wait and combine results
     count = [0] * n
-    jobs = [job_server.submit(core_computation,(todo_core,n), (), ()) for todo_core in todo]
+    jobs = [job_server.submit(core_computation,(todo_core,n), (sum_AB,), ()) for todo_core in todo]
     for job in jobs:
         count2 = job()
         for i in range(1, n):
@@ -64,6 +64,18 @@ def oeis_A081671(n):
     for i in range(2, n+1):
         a, b = b, (4*(2*i-1)*b - 12*(i-1)*a) / i
     return b
+
+
+def sum_AB(S):
+    result = 0
+    while S:
+        t = S & 0b11
+        if t == 0b01:
+            result += 1
+        elif t == 0b10:
+            result -= 1
+        S >>= 2
+    return result
 
 
 def core_computation(todo, n):
@@ -98,10 +110,12 @@ def core_computation(todo, n):
                 min_B = tmp | minus_mask[n - index]
                 max_B = tmp | plus_mask[n - index]
 
-                if lookup[A & min_B] <= 0 <= lookup[A & max_B]:
+                #if lookup[A & min_B] <= 0 <= lookup[A & max_B]:
+                if sum_AB(A & min_B) <= 0 <= sum_AB(A & max_B):
                     min_B = ((min_B & cycle_mask) << 2) | (min_B >> (2*n - 2))
                     max_B = ((max_B & cycle_mask) << 2) | (max_B >> (2*n - 2))
-                    if lookup[A & min_B] <= 0 <= lookup[A & max_B]:
+                    #if lookup[A & min_B] <= 0 <= lookup[A & max_B]:
+                    if sum_AB(A & min_B) <= 0 <= sum_AB(A & max_B):
                         tmp = B << 2
                         stack.append((tmp | 0b00, index + 1))
                         stack.append((tmp | 0b01, index + 1))
@@ -109,7 +123,8 @@ def core_computation(todo, n):
             else:
                 # B is complete, calculate the sums
                 for i in range(0, n):
-                    if lookup[A & B] == 0:
+                    #if lookup[A & B] == 0:
+                    if sum_AB(A & B) == 0:
                         count[i] += cycled_count
                         B = ((B & cycle_mask) << 2) | (B >> (2*n - 2))
                     else:
@@ -121,4 +136,4 @@ if __name__ == "__main__":
     if len(argv) > 1:
         compute_probability(int(argv[1]))
     else:
-        compute_probability(5)
+        compute_probability(11)
