@@ -58,22 +58,31 @@ def core_computation(dict_A, n):
     for A, cycled_count in dict_A.iteritems():
         ones = [sum(A[i:]) for i in range(n)] + [0]
         # + [0], so that later ones[n] doesn't throw a exception
-        stack.append(([0] * n, 0, 0, 0))
+        stack.append(([0] * n, 0, 0, 0, False))
 
         while stack:
-            B, index, sum1, sum2 = stack.pop()
+            B, index, sum1, sum2, used_negative = stack.pop()
             if index < n:
                 # fill vector B[index] in all possible ways,
                 # so that it's still possible to reach 0.
-                for v in (-1, 0, 1):
-                    sum1_new = sum1 + v * A[index]
-                    sum2_new = sum2 + v * A[index - 1 if index else n - 1]
-                    if abs(sum1_new) <= ones[index+1] \
-                       and abs(sum2_new) <= ones[index] - A[n-1]:
-                        C = B[:]
-                        C[index] = v
-                        stack.append((C, index + 1, sum1_new, sum2_new))
-
+                if used_negative:
+                    for v in (-1, 0, 1):
+                        sum1_new = sum1 + v * A[index]
+                        sum2_new = sum2 + v * A[index - 1 if index else n - 1]
+                        if abs(sum1_new) <= ones[index+1]:
+                            if abs(sum2_new) <= ones[index] - A[n-1]:
+                                C = B[:]
+                                C[index] = v
+                                stack.append((C, index + 1, sum1_new, sum2_new, True))
+                else:
+                    for v in (0, 1):
+                        sum1_new = sum1 + v * A[index]
+                        sum2_new = sum2 + v * A[index - 1 if index else n - 1]
+                        if abs(sum1_new) <= ones[index+1]:
+                            if abs(sum2_new) <= ones[index] - A[n-1]:
+                                C = B[:]
+                                C[index] = v
+                                stack.append((C, index + 1, sum1_new, sum2_new, v == 1))
             else:
                 # B is complete, calculate the sums
                 count[1] += cycled_count  # we know that the sum = 0 for i = 1
@@ -86,7 +95,10 @@ def core_computation(dict_A, n):
                     if sum_prod:
                         break
                     else:
-                        count[i] += cycled_count
+                        if used_negative:
+                            count[i] += 2*cycled_count
+                        else:
+                            count[i] += cycled_count
     return count
 
 
