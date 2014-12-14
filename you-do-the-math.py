@@ -85,7 +85,10 @@ def core_computation(dict_A, n):
                                 stack.append((C, index + 1, sum1_new, sum2_new, v == 1))
             else:
                 # B is complete, calculate the sums
-                count[1] += cycled_count  # we know that the sum = 0 for i = 1
+                if used_negative:
+                    count[1] += 2*cycled_count
+                else:
+                    count[1] += cycled_count  # we know that the sum = 0 for i = 1
                 for i in range(2, n):
                     sum_prod = 0
                     for j in range(n-i):
