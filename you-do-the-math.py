@@ -12,31 +12,20 @@ def compute_probability(n):
     # generate all possible vector A
     # and divide them to the cores
     visited = set()
-    todo = [[] for _ in range(core_count)]
+    todo = [dict() for _ in range(core_count)]
     core_index = 0
-    def l(B):
-        o = 0
-        for v in B:
-            o = 3*o + v + 1
-        return o
-    for B in product((-1, 0, 1), repeat=n):
-        if l(B) not in visited:
+    for A in product((0, 1), repeat=n):
+        if A not in visited:
             # generate all vectors, which have the same probability
             # mirrored and cycled vectors
             same_probability_set = set()
             for i in range(n):
-                tmp = [B[(i+j) % n] for j in range(n)]
-                same_probability_set.add(l(tmp))
-                same_probability_set.add(l(tmp[::-1]))
-                tmp = [-v for v in tmp]
-                same_probability_set.add(l(tmp))
-                same_probability_set.add(l(tmp[::-1]))
+                tmp = [A[(i+j) % n] for j in range(n)]
+                same_probability_set.add(tuple(tmp))
+                same_probability_set.add(tuple(tmp[::-1]))
             visited.update(same_probability_set)
-            todo[core_index % core_count].append((B, len(same_probability_set)))
+            todo[core_index % core_count][A] = len(same_probability_set)
             core_index += 1
-
-    for t in todo:
-        print(len(t))
 
     # start threads on each core, wait and combine results
     count = [0] * n
@@ -61,71 +50,45 @@ def oeis_A081671(n):
     return b
 
 
-def core_computation(list_B, n):
+def core_computation(dict_A, n):
     count = [0] * n
 
     # for each vector A, create all possible vectors B
-##    stack = []
-##    for B, cycled_count in list_B:
-##        for A in itertools.product((0, 1), repeat=n):
-##            for i in range(n):
-##                sum_prod = 0
-##                for j in range(n-i):
-##                    sum_prod += A[j] * B[i+j]
-##                for j in range(i):
-##                    sum_prod += A[n-i+j] * B[j]
-##                if sum_prod:
-##                    break
-##                else:
-##                    count[i] += cycled_count
-##    return count
-
-    for B, cycled_count in list_B:
-        t_o = sum(1 for v in B if v == 1)
-        t_m = sum(1 for v in B if v == -1)
-        t_o2 = t_o
-        t_m2 = t_m
-        ones, minones = [], []
-        ones_shifted, minones_shifted = [], []
-        for v in B:
-            if v == 1:
-                t_o -= 1
-            elif v == -1:
-                t_m -= 1
-            ones.append(t_o)
-            minones.append(t_m)
-        for v in list(B[1:]) + [B[0]]:
-            if v == 1:
-                t_o2 -= 1
-            elif v == -1:
-                t_m2 -= 1
-            ones_shifted.append(t_o2)
-            minones_shifted.append(t_m2)
-
-##        print(ones)
-##        print(minones)
-##        print(ones_shifted)
-##        print(minones_shifted)
-
-        stack = []
-        stack.append(([0] * n, 0, 0, 0))
+    stack = []
+    for A, cycled_count in dict_A.iteritems():
+        ones = [sum(A[i:]) for i in range(n)] + [0]
+        # + [0], so that later ones[n] doesn't throw a exception
+        stack.append(([0] * n, 0, 0, 0, False))
 
         while stack:
-            A, index, sum1, sum2 = stack.pop()
+            B, index, sum1, sum2, used_negative = stack.pop()
             if index < n:
-                # fill vector A[index] in all possible ways,
+                # fill vector B[index] in all possible ways,
                 # so that it's still possible to reach 0.
-                for v in (0, 1):
-                    sum1_new = sum1 + v * B[index]
-                    sum2_new = sum2 + v * B[index + 1 if index +1 < n else 0]
-                    if sum1_new - minones[index] <= 0 <= sum1_new + ones[index] and \
-                        sum2_new - minones_shifted[index] <= 0 <= sum2_new + ones_shifted[index]:
-                            C = A[:]
-                            C[index] = v
-                            stack.append((C, index + 1, sum1_new, sum2_new))
+                if used_negative:
+                    for v in (-1, 0, 1):
+                        sum1_new = sum1 + v * A[index]
+                        sum2_new = sum2 + v * A[index - 1 if index else n - 1]
+                        if abs(sum1_new) <= ones[index+1]:
+                            if abs(sum2_new) <= ones[index] - A[n-1]:
+                                C = B[:]
+                                C[index] = v
+                                stack.append((C, index + 1, sum1_new, sum2_new, True))
+                else:
+                    for v in (0, 1):
+                        sum1_new = sum1 + v * A[index]
+                        sum2_new = sum2 + v * A[index - 1 if index else n - 1]
+                        if abs(sum1_new) <= ones[index+1]:
+                            if abs(sum2_new) <= ones[index] - A[n-1]:
+                                C = B[:]
+                                C[index] = v
+                                stack.append((C, index + 1, sum1_new, sum2_new, v == 1))
             else:
                 # B is complete, calculate the sums
-                count[1] += cycled_count  # we know that the sum = 0 for i = 1
+                if used_negative:
+                    count[1] += 2*cycled_count
+                else:
+                    count[1] += cycled_count  # we know that the sum = 0 for i = 1
                 for i in range(2, n):
                     sum_prod = 0
                     for j in range(n-i):
@@ -135,15 +98,15 @@ def core_computation(list_B, n):
                     if sum_prod:
                         break
                     else:
-                        count[i] += cycled_count
+                        if used_negative:
+                            count[i] += 2*cycled_count
+                        else:
+                            count[i] += cycled_count
     return count
 
 
 if __name__ == "__main__":
-    n = int(argv[1]) if len(argv) > 1 else 5
-
-    #core_computation([((1, -1, 0, -1, 1), 1)], n)
-    #exit()
+    n = int(argv[1]) if len(argv) > 1 else 11
 
     start_time = time()
     count = compute_probability(n)
